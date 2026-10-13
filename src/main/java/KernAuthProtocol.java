@@ -20,7 +20,6 @@ import java.util.Base64;
 import java.util.Map;
 import java.util.TreeMap;
 
-// Protocol example: mvn -f apps/web/src/examples/java/pom.xml exec:java
 public final class KernAuthProtocol {
   private static final String API = "https://api.kernauth.com";
   private static final String APP_ID = "__PUBLIC_APP_ID__";
@@ -41,6 +40,18 @@ public final class KernAuthProtocol {
     this.appId = appId;
     this.keyId = keyId;
     this.publicKey = publicKey;
+  }
+
+  public static void main(String[] args) throws Exception {
+    if (args.length > 0 && args[0].equals("--test-vectors")) { testVectors(); return; }
+    String license = System.getenv("KERN_LICENSE_KEY");
+    String installation = System.getenv("KERN_INSTALLATION_ID");
+    if (license == null || installation == null) throw new IllegalArgumentException("Set KERN_LICENSE_KEY and KERN_INSTALLATION_ID");
+    KernAuthProtocol app = new KernAuthProtocol(API, APP_ID, KEY_ID, PUBLIC_KEY);
+    if (!app.activate(license, installation) || !app.validate(license, installation) || !app.deactivate(license, installation)) {
+      throw new IllegalStateException(app.message);
+    }
+    System.out.println(app.message);
   }
 
   private static JsonNode sorted(JsonNode node) {
@@ -163,17 +174,5 @@ public final class KernAuthProtocol {
       if (verify(forged, nonce, app, key, publicKey, now)) throw new IllegalStateException("Bad signature accepted");
     }
     System.out.println("Java vectors passed");
-  }
-
-  public static void main(String[] args) throws Exception {
-    if (args.length > 0 && args[0].equals("--test-vectors")) { testVectors(); return; }
-    String license = System.getenv("KERN_LICENSE_KEY");
-    String installation = System.getenv("KERN_INSTALLATION_ID");
-    if (license == null || installation == null) throw new IllegalArgumentException("Set KERN_LICENSE_KEY and KERN_INSTALLATION_ID");
-    KernAuthProtocol app = new KernAuthProtocol(API, APP_ID, KEY_ID, PUBLIC_KEY);
-    if (!app.activate(license, installation) || !app.validate(license, installation) || !app.deactivate(license, installation)) {
-      throw new IllegalStateException(app.message);
-    }
-    System.out.println(app.message);
   }
 }
