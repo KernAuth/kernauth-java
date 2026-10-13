@@ -29,6 +29,19 @@ public final class KernAuthProtocol {
   private static final String[] FIELDS = {"protocol_version", "entitlement_id", "application_id", "license_id",
       "status", "features", "device_id", "issued_at", "expires_at", "server_time", "nonce", "key_id"};
   private static final ObjectMapper JSON = new ObjectMapper();
+  private final String api;
+  private final String appId;
+  private final String keyId;
+  private final String publicKey;
+  public boolean success;
+  public String message = "";
+
+  public KernAuthProtocol(String api, String appId, String keyId, String publicKey) {
+    this.api = api;
+    this.appId = appId;
+    this.keyId = keyId;
+    this.publicKey = publicKey;
+  }
 
   private static JsonNode sorted(JsonNode node) {
     if (node.isObject()) {
@@ -81,16 +94,41 @@ public final class KernAuthProtocol {
     } catch (Exception ignored) { return false; }
   }
 
-  private static void request(String mode, String license, String installation) throws Exception {
+  public boolean activate(String license, String installation) {
+    return call("activate", license, installation, "License is active");
+  }
+
+  public boolean validate(String license, String installation) {
+    return call("validate", license, installation, "License is active");
+  }
+
+  public boolean deactivate(String license, String installation) {
+    return call("deactivate", license, installation, "Device deactivated");
+  }
+
+  private boolean call(String mode, String license, String installation, String okMessage) {
+    try {
+      post(mode, license, installation);
+      success = true;
+      message = okMessage;
+      return true;
+    } catch (Exception error) {
+      success = false;
+      message = error.getMessage() == null ? "request failed" : error.getMessage();
+      return false;
+    }
+  }
+
+  private void post(String mode, String license, String installation) throws Exception {
     byte[] random = new byte[24]; new SecureRandom().nextBytes(random);
     String nonce = Base64.getUrlEncoder().withoutPadding().encodeToString(random);
     byte[] digest = MessageDigest.getInstance("SHA-256")
         .digest(("kernauth-device-v1:" + installation).getBytes(StandardCharsets.UTF_8));
-    var body = Map.of("protocol_version", 1, "public_app_id", APP_ID, "client_version", "1.0.0",
+    var body = Map.of("protocol_version", 1, "public_app_id", appId, "client_version", "1.0.0",
         "license_key", license, "fingerprint_version", 1, "device_fingerprint", java.util.HexFormat.of().formatHex(digest),
         "installation_id", installation, "nonce", nonce);
     HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
-    HttpRequest outgoing = HttpRequest.newBuilder(URI.create(API + "/v1/client/" + mode))
+    HttpRequest outgoing = HttpRequest.newBuilder(URI.create(api + "/v1/client/" + mode))
         .timeout(Duration.ofSeconds(10)).header("Content-Type", "application/json")
         .POST(HttpRequest.BodyPublishers.ofString(JSON.writeValueAsString(body))).build();
     HttpResponse<String> response = client.send(outgoing, HttpResponse.BodyHandlers.ofString());
@@ -98,7 +136,7 @@ public final class KernAuthProtocol {
     JsonNode grant = JSON.readTree(response.body());
     if (mode.equals("deactivate")) {
       if (!grant.required("deactivated").asBoolean()) throw new IllegalStateException("Deactivation not confirmed");
-    } else if (!verify(grant, nonce, APP_ID, KEY_ID, PUBLIC_KEY, Instant.now()))
+    } else if (!verify(grant, nonce, appId, keyId, publicKey, Instant.now()))
       throw new IllegalStateException("Invalid or expired signed entitlement");
   }
 
@@ -132,7 +170,10 @@ public final class KernAuthProtocol {
     String license = System.getenv("KERN_LICENSE_KEY");
     String installation = System.getenv("KERN_INSTALLATION_ID");
     if (license == null || installation == null) throw new IllegalArgumentException("Set KERN_LICENSE_KEY and KERN_INSTALLATION_ID");
-    for (String mode : new String[] {"activate", "validate", "deactivate"}) request(mode, license, installation);
-    System.out.println("Signed entitlement verified and device deactivated");
+    KernAuthProtocol app = new KernAuthProtocol(API, APP_ID, KEY_ID, PUBLIC_KEY);
+    if (!app.activate(license, installation) || !app.validate(license, installation) || !app.deactivate(license, installation)) {
+      throw new IllegalStateException(app.message);
+    }
+    System.out.println(app.message);
   }
 }
