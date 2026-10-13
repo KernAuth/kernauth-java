@@ -48,7 +48,7 @@ public final class KernAuthProtocol {
     String installation = System.getenv("KERN_INSTALLATION_ID");
     if (license == null || installation == null) throw new IllegalArgumentException("Set KERN_LICENSE_KEY and KERN_INSTALLATION_ID");
     KernAuthProtocol app = new KernAuthProtocol(API, APP_ID, KEY_ID, PUBLIC_KEY);
-    if (!app.activate(license, installation) || !app.validate(license, installation) || !app.deactivate(license, installation)) {
+    if (!app.validate(license, installation)) {
       throw new IllegalStateException(app.message);
     }
     System.out.println(app.message);
@@ -105,16 +105,8 @@ public final class KernAuthProtocol {
     } catch (Exception ignored) { return false; }
   }
 
-  public boolean activate(String license, String installation) {
-    return call("activate", license, installation, "License is active");
-  }
-
   public boolean validate(String license, String installation) {
     return call("validate", license, installation, "License is active");
-  }
-
-  public boolean deactivate(String license, String installation) {
-    return call("deactivate", license, installation, "Device deactivated");
   }
 
   private boolean call(String mode, String license, String installation, String okMessage) {
@@ -145,9 +137,7 @@ public final class KernAuthProtocol {
     HttpResponse<String> response = client.send(outgoing, HttpResponse.BodyHandlers.ofString());
     if (response.statusCode() != 200) throw new IllegalStateException(mode + " failed: " + response.statusCode());
     JsonNode grant = JSON.readTree(response.body());
-    if (mode.equals("deactivate")) {
-      if (!grant.required("deactivated").asBoolean()) throw new IllegalStateException("Deactivation not confirmed");
-    } else if (!verify(grant, nonce, appId, keyId, publicKey, Instant.now()))
+    if (!verify(grant, nonce, appId, keyId, publicKey, Instant.now()))
       throw new IllegalStateException("Invalid or expired signed entitlement");
   }
 

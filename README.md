@@ -1,6 +1,6 @@
 # KernAuth Java example
 
-Protocol example for JDK 21. This is not the official SDK. The official client is the C++ SDK. This file calls the same activate, validate, and deactivate routes and checks the Ed25519 signature.
+Protocol example for JDK 21. This is not the official SDK. The official client is the C++ SDK. This file calls validate and checks the Ed25519 signature.
 
 ## Add it
 
@@ -22,14 +22,6 @@ KernAuthProtocol app = new KernAuthProtocol(
     "__PUBLIC_KEY__");
 ```
 
-## Activate
-
-```java
-if (!app.activate(license, installation)) {
-    throw new IllegalStateException(app.message);
-}
-```
-
 ## Validate
 
 ```java
@@ -37,16 +29,6 @@ if (!app.validate(license, installation)) {
     throw new IllegalStateException(app.message);
 }
 ```
-
-## Deactivate
-
-```java
-if (!app.deactivate(license, installation)) {
-    throw new IllegalStateException(app.message);
-}
-```
-
-`app.message` is `Device deactivated` after a successful deactivate.
 
 A patched program can still skip the check. These examples do not add anti-debug or anti-VM code.
 
