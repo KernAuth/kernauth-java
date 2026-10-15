@@ -69,16 +69,25 @@ public final class KernAuthProtocol {
   private static String installationId() throws Exception {
     String fromEnv = System.getenv("KERN_INSTALLATION_ID");
     if (fromEnv != null && !fromEnv.isBlank()) return fromEnv.trim();
-    Path file = Path.of("kernauth-install");
-    if (Files.exists(file)) {
-      String saved = Files.readString(file).trim();
-      if (!saved.isEmpty()) return saved;
+    String hwid = machineHwid().trim();
+    if (hwid.matches("[A-Za-z0-9_-]{8,64}")) return hwid;
+    throw new IllegalStateException("Could not read the HWID");
+  }
+
+  private static String machineHwid() throws Exception {
+    String os = System.getProperty("os.name", "").toLowerCase();
+    if (os.contains("win")) {
+      Process process = new ProcessBuilder("powershell.exe", "-NoProfile", "-Command",
+          "[System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value").start();
+      return new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
     }
-    byte[] random = new byte[16];
-    new SecureRandom().nextBytes(random);
-    String created = java.util.HexFormat.of().formatHex(random);
-    Files.writeString(file, created + "\n");
-    return created;
+    if (os.contains("mac")) {
+      Process process = new ProcessBuilder("ioreg", "-rd1", "-c", "IOPlatformExpertDevice").start();
+      String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+      var matcher = java.util.regex.Pattern.compile("\"IOPlatformUUID\" = \"([^\"]+)\"").matcher(output);
+      return matcher.find() ? matcher.group(1) : "";
+    }
+    return Files.readString(Path.of("/etc/machine-id"));
   }
 
   private static JsonNode sorted(JsonNode node) {
