@@ -1,6 +1,6 @@
 # KernAuth Java example
 
-Paste the public app ID, key ID, and public key from Developers into `KernAuthProtocol.java`. JDK 21, with the adjacent pom.xml and Jackson.
+Paste the public app ID and public key from Developers into `KernAuthProtocol.java`. JDK 21, with the adjacent pom.xml and Jackson.
 
 ## Instance
 
@@ -8,7 +8,6 @@ Paste the public app ID, key ID, and public key from Developers into `KernAuthPr
 KernAuthProtocol app = new KernAuthProtocol(
     "https://api.kernauth.com",
     "__PUBLIC_APP_ID__",
-    "__KEY_ID__",
     "__PUBLIC_KEY__");
 ```
 

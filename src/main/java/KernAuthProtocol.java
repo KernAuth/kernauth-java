@@ -23,14 +23,12 @@ import java.util.TreeMap;
 public final class KernAuthProtocol {
   private static final String API = "https://api.kernauth.com";
   private static final String APP_ID = "__PUBLIC_APP_ID__";
-  private static final String KEY_ID = "__KEY_ID__";
   private static final String PUBLIC_KEY = "__PUBLIC_KEY__";
   private static final String[] FIELDS = {"protocol_version", "entitlement_id", "application_id", "license_id",
       "status", "features", "device_id", "issued_at", "expires_at", "server_time", "nonce", "key_id"};
   private static final ObjectMapper JSON = new ObjectMapper();
   private final String api;
   private final String appId;
-  private final String keyId;
   private final String publicKey;
   public boolean success;
   public String message = "";
@@ -39,16 +37,15 @@ public final class KernAuthProtocol {
   public String licenseId = "";
   public String expiresAt = "";
 
-  public KernAuthProtocol(String api, String appId, String keyId, String publicKey) {
+  public KernAuthProtocol(String api, String appId, String publicKey) {
     this.api = api;
     this.appId = appId;
-    this.keyId = keyId;
     this.publicKey = publicKey;
   }
 
   public static void main(String[] args) throws Exception {
     if (args.length > 0 && args[0].equals("--test-vectors")) { testVectors(); return; }
-    KernAuthProtocol app = new KernAuthProtocol(API, APP_ID, KEY_ID, PUBLIC_KEY);
+    KernAuthProtocol app = new KernAuthProtocol(API, APP_ID, PUBLIC_KEY);
     if (!app.validate(licenseKey(), installationId())) {
       throw new IllegalStateException(app.message);
     }
@@ -119,13 +116,12 @@ public final class KernAuthProtocol {
     return result.toString().getBytes(StandardCharsets.UTF_8);
   }
 
-  static boolean verify(JsonNode grant, String nonce, String app, String keyId, String publicKey, Instant now) {
+  static boolean verify(JsonNode grant, String nonce, String app, String publicKey, Instant now) {
     try {
       JsonNode ent = grant.required("entitlement");
       if (ent.required("protocol_version").asInt() != 1 ||
           !ent.required("nonce").asText().equals(nonce) ||
           !ent.required("application_id").asText().equals(app) ||
-          !ent.required("key_id").asText().equals(keyId) ||
           !ent.required("status").asText().equals("active") ||
           !Instant.parse(ent.required("expires_at").asText()).isAfter(now)) return false;
       byte[] raw = Base64.getDecoder().decode(publicKey);
@@ -173,7 +169,7 @@ public final class KernAuthProtocol {
     HttpResponse<String> response = client.send(outgoing, HttpResponse.BodyHandlers.ofString());
     if (response.statusCode() != 200) throw new IllegalStateException(mode + " failed: " + response.statusCode());
     JsonNode grant = JSON.readTree(response.body());
-    if (!verify(grant, nonce, appId, keyId, publicKey, Instant.now()))
+    if (!verify(grant, nonce, appId, publicKey, Instant.now()))
       throw new IllegalStateException("Invalid or expired signed entitlement");
     JsonNode ent = grant.required("entitlement");
     status = ent.required("status").asText();
@@ -193,17 +189,15 @@ public final class KernAuthProtocol {
       grant.set("entitlement", ent); grant.set("signature", vector.required("signature"));
       String nonce = ent.required("nonce").asText();
       String app = ent.required("application_id").asText();
-      String key = ent.required("key_id").asText();
       String publicKey = vector.required("public_key").asText();
       Instant now = Instant.parse("2026-01-01T00:01:00Z");
-      if (!verify(grant, nonce, app, key, publicKey, now) || verify(grant, "wrong", app, key, publicKey, now) ||
-          verify(grant, nonce, "pub_other_app", key, publicKey, now) ||
-          verify(grant, nonce, app, "wrong-key", publicKey, now) ||
-          verify(grant, nonce, app, key, publicKey, now.plusSeconds(1200)))
+      if (!verify(grant, nonce, app, publicKey, now) || verify(grant, "wrong", app, publicKey, now) ||
+          verify(grant, nonce, "pub_other_app", publicKey, now) ||
+          verify(grant, nonce, app, publicKey, now.plusSeconds(1200)))
         throw new IllegalStateException("Vector verification failed");
       ObjectNode forged = JSON.createObjectNode();
       forged.set("entitlement", ent); forged.put("signature", vector.required("signature").asText() + "AA");
-      if (verify(forged, nonce, app, key, publicKey, now)) throw new IllegalStateException("Bad signature accepted");
+      if (verify(forged, nonce, app, publicKey, now)) throw new IllegalStateException("Bad signature accepted");
     }
     System.out.println("Java vectors passed");
   }
