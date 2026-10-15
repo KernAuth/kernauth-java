@@ -34,6 +34,10 @@ public final class KernAuthProtocol {
   private final String publicKey;
   public boolean success;
   public String message = "";
+  public String status = "";
+  public String features = "";
+  public String licenseId = "";
+  public String expiresAt = "";
 
   public KernAuthProtocol(String api, String appId, String keyId, String publicKey) {
     this.api = api;
@@ -44,14 +48,37 @@ public final class KernAuthProtocol {
 
   public static void main(String[] args) throws Exception {
     if (args.length > 0 && args[0].equals("--test-vectors")) { testVectors(); return; }
-    String license = System.getenv("KERN_LICENSE_KEY");
-    String installation = System.getenv("KERN_INSTALLATION_ID");
-    if (license == null || installation == null) throw new IllegalArgumentException("Set KERN_LICENSE_KEY and KERN_INSTALLATION_ID");
     KernAuthProtocol app = new KernAuthProtocol(API, APP_ID, KEY_ID, PUBLIC_KEY);
-    if (!app.validate(license, installation)) {
+    if (!app.validate(licenseKey(), installationId())) {
       throw new IllegalStateException(app.message);
     }
-    System.out.println(app.message);
+    System.out.println("Status: " + app.status);
+    System.out.println("Features: " + app.features);
+    System.out.println("License: " + app.licenseId);
+    System.out.println("Check expires: " + app.expiresAt);
+  }
+
+  private static String licenseKey() throws Exception {
+    String fromEnv = System.getenv("KERN_LICENSE_KEY");
+    if (fromEnv != null && !fromEnv.isBlank()) return fromEnv.trim();
+    if (System.console() != null) System.out.print("Enter license: ");
+    String line = new java.io.BufferedReader(new java.io.InputStreamReader(System.in, StandardCharsets.UTF_8)).readLine();
+    return line == null ? "" : line.trim();
+  }
+
+  private static String installationId() throws Exception {
+    String fromEnv = System.getenv("KERN_INSTALLATION_ID");
+    if (fromEnv != null && !fromEnv.isBlank()) return fromEnv.trim();
+    Path file = Path.of("kernauth-install");
+    if (Files.exists(file)) {
+      String saved = Files.readString(file).trim();
+      if (!saved.isEmpty()) return saved;
+    }
+    byte[] random = new byte[16];
+    new SecureRandom().nextBytes(random);
+    String created = java.util.HexFormat.of().formatHex(random);
+    Files.writeString(file, created + "\n");
+    return created;
   }
 
   private static JsonNode sorted(JsonNode node) {
@@ -139,6 +166,12 @@ public final class KernAuthProtocol {
     JsonNode grant = JSON.readTree(response.body());
     if (!verify(grant, nonce, appId, keyId, publicKey, Instant.now()))
       throw new IllegalStateException("Invalid or expired signed entitlement");
+    JsonNode ent = grant.required("entitlement");
+    status = ent.required("status").asText();
+    JsonNode feature = ent.required("features");
+    features = JSON.writeValueAsString(sorted(feature.isTextual() ? JSON.readTree(feature.asText()) : feature));
+    licenseId = ent.required("license_id").asText();
+    expiresAt = ent.required("expires_at").asText();
   }
 
   private static void testVectors() throws Exception {
