@@ -46,13 +46,24 @@ public final class KernAuthProtocol {
   public static void main(String[] args) throws Exception {
     if (args.length > 0 && args[0].equals("--test-vectors")) { testVectors(); return; }
     KernAuthProtocol app = new KernAuthProtocol(API, APP_ID, PUBLIC_KEY);
-    if (!app.validate(licenseKey(), installationId())) {
+    String key = licenseKey();
+    String hwid = installationId();
+    if (!app.validate(key, hwid)) {
       throw new IllegalStateException(app.message);
     }
     System.out.println("Status: " + app.status);
     System.out.println("Features: " + app.features);
     System.out.println("License: " + app.licenseId);
     System.out.println("Check expires: " + app.expiresAt);
+    while (true) {
+      Thread.sleep(60_000);
+      try {
+        app.heartbeat(key, hwid);
+      } catch (Exception error) {
+        System.out.println(error.getMessage());
+        System.exit(1);
+      }
+    }
   }
 
   private static String licenseKey() throws Exception {
@@ -154,6 +165,32 @@ public final class KernAuthProtocol {
     }
   }
 
+  private static String apiMessage(String raw, String fallback) {
+    try {
+      JsonNode message = JSON.readTree(raw).path("error").path("message");
+      if (message.isTextual() && !message.asText().isBlank()) return message.asText();
+    } catch (Exception ignored) {
+    }
+    return fallback;
+  }
+
+  private void heartbeat(String license, String installation) throws Exception {
+    byte[] random = new byte[24]; new SecureRandom().nextBytes(random);
+    String nonce = Base64.getUrlEncoder().withoutPadding().encodeToString(random);
+    byte[] digest = MessageDigest.getInstance("SHA-256")
+        .digest(("kernauth-device-v1:" + installation).getBytes(StandardCharsets.UTF_8));
+    var body = Map.of("protocol_version", 1, "public_app_id", appId, "client_version", "1.0.0",
+        "license_key", license, "fingerprint_version", 1, "device_fingerprint", java.util.HexFormat.of().formatHex(digest),
+        "installation_id", installation, "nonce", nonce);
+    HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+    HttpRequest outgoing = HttpRequest.newBuilder(URI.create(api + "/v1/client/heartbeat"))
+        .timeout(Duration.ofSeconds(10)).header("Content-Type", "application/json")
+        .POST(HttpRequest.BodyPublishers.ofString(JSON.writeValueAsString(body))).build();
+    HttpResponse<String> response = client.send(outgoing, HttpResponse.BodyHandlers.ofString());
+    if (response.statusCode() != 200) throw new IllegalStateException(apiMessage(response.body(), "heartbeat failed: " + response.statusCode()));
+    if (!JSON.readTree(response.body()).path("ok").asBoolean(false)) throw new IllegalStateException("heartbeat failed");
+  }
+
   private void post(String mode, String license, String installation) throws Exception {
     byte[] random = new byte[24]; new SecureRandom().nextBytes(random);
     String nonce = Base64.getUrlEncoder().withoutPadding().encodeToString(random);
@@ -167,7 +204,7 @@ public final class KernAuthProtocol {
         .timeout(Duration.ofSeconds(10)).header("Content-Type", "application/json")
         .POST(HttpRequest.BodyPublishers.ofString(JSON.writeValueAsString(body))).build();
     HttpResponse<String> response = client.send(outgoing, HttpResponse.BodyHandlers.ofString());
-    if (response.statusCode() != 200) throw new IllegalStateException(mode + " failed: " + response.statusCode());
+    if (response.statusCode() != 200) throw new IllegalStateException(apiMessage(response.body(), mode + " failed: " + response.statusCode()));
     JsonNode grant = JSON.readTree(response.body());
     if (!verify(grant, nonce, appId, publicKey, Instant.now()))
       throw new IllegalStateException("Invalid or expired signed entitlement");
