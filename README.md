@@ -1,6 +1,6 @@
 # KernAuth Java example
 
-Protocol example for JDK 21. This is not the official SDK. The official client is the C++ SDK. This file calls validate and checks the Ed25519 signature.
+Example for JDK 21. This file calls validate and checks the Ed25519 signature.
 
 ## Add it
 
