@@ -3,12 +3,9 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.kernauth.examples</groupId><artifactId>protocol</artifactId><version>1.0.0</version>
   <properties><maven.compiler.release>21</maven.compiler.release></properties>
-  <dependencies>
-    <dependency><groupId>com.fasterxml.jackson.core</groupId><artifactId>jackson-databind</artifactId><version>2.20.1</version></dependency>
-  </dependencies>
   <build><plugins>
     <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-compiler-plugin</artifactId><version>3.14.1</version></plugin>
     <plugin><groupId>org.codehaus.mojo</groupId><artifactId>exec-maven-plugin</artifactId><version>3.5.1</version>
-      <configuration><mainClass>KernAuthProtocol</mainClass></configuration></plugin>
+      <configuration><mainClass>Main</mainClass></configuration></plugin>
   </plugins></build>
 </project>

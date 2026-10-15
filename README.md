@@ -1,34 +1,18 @@
 # KernAuth Java example
 
-Paste the public app ID and public key from Developers into `KernAuthProtocol.java`. JDK 21, with the adjacent pom.xml and Jackson.
+Paste the public app ID from Developers into `src/main/java/Main.java`. JDK 21, with the pom.xml in this repository.
 
-## Instance
-
-```java
-KernAuthProtocol app = new KernAuthProtocol(
-    "https://api.kernauth.com",
-    "__PUBLIC_APP_ID__",
-    "__PUBLIC_KEY__");
-```
-
-## Validate
+## Start
 
 ```java
-if (!app.validate(license, installation)) {
-    throw new IllegalStateException(app.message);
-}
-System.out.println("Status: " + app.status);
-System.out.println("Features: " + app.features);
-System.out.println("License: " + app.licenseId);
-System.out.println("Check expires: " + app.expiresAt);
+KernAuth app = new KernAuth("https://api.kernauth.com", "__PUBLIC_APP_ID__");
 ```
 
-A good check prints the status, the feature flags stored on the license, the license id, and when this check expires. Type the license key at the prompt. `KERN_LICENSE_KEY` skips the prompt. The program reads the HWID from the computer. On Windows that is the signed-in user's SID. `KERN_INSTALLATION_ID` overrides that HWID. The program then asks the server again every minute. If the session was ended, the key was paused, or this computer is blocked, it prints that message and exits.
+Type the license at the prompt. `KERN_LICENSE_KEY` skips the prompt. The program checks that the key is valid and prints when it expires. It does not save a computer.
 
 ## Run
 
 ```
-mvn -q compile exec:java -Dexec.args=--test-vectors
 mvn -q compile exec:java
 ```
 
