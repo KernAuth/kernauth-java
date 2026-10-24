@@ -9,15 +9,26 @@ public final class KernAuth {
   public String expiresAt = null;
   private final String api;
   private final String appId;
+  private final String version;
 
   public KernAuth(String api, String appId) {
+    this(api, appId, "");
+  }
+
+  public KernAuth(String api, String appId, String version) {
     this.api = api;
     this.appId = appId;
+    this.version = version == null || version.isEmpty() ? "1.0.0" : version;
   }
 
   public static String checkBody(String appId, String licenseKey) {
+    return checkBody(appId, licenseKey, "1.0.0");
+  }
+
+  public static String checkBody(String appId, String licenseKey, String version) {
+    final String sent = version == null || version.isEmpty() ? "1.0.0" : version;
     return "{\"protocol_version\":1,\"public_app_id\":\"" + appId
-        + "\",\"client_version\":\"1.0.0\",\"license_key\":\"" + licenseKey + "\"}";
+        + "\",\"client_version\":\"" + sent + "\",\"license_key\":\"" + licenseKey + "\"}";
   }
 
   public static String apiMessage(String raw, String fallback) {
@@ -36,7 +47,7 @@ public final class KernAuth {
       HttpRequest request = HttpRequest.newBuilder(URI.create(api + "/v1/client/check"))
           .timeout(Duration.ofSeconds(10))
           .header("content-type", "application/json")
-          .POST(HttpRequest.BodyPublishers.ofString(checkBody(appId, licenseKey)))
+          .POST(HttpRequest.BodyPublishers.ofString(checkBody(appId, licenseKey, version)))
           .build();
       HttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
       String raw = response.body();
